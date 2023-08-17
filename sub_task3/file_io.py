@@ -26,27 +26,49 @@ SOFTWARE.
 
 Update: 2022.06.16.
 '''
+# torch
+import torch
 
+# built-in library
 import sys
-import numpy as np
 import csv
-import codecs
 import re
 import os
 import json
-import _pickle as pickle
-from ctypes import cdll, create_string_buffer
+import random
 from itertools import permutations
+
+# external library
+import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy import sparse
+
+import codecs
+import _pickle as pickle
+from ctypes import cdll, create_string_buffer
+
+
 ### added ###
 import pdb
+import yaml
+
 
 def _load_fashion_item(in_file, coordi_size, meta_size):
     """
     function: load fashion item metadata
     각각의 fashion item마다 4개의 metadata를 보유하고 있음.
     고로 fashion item 개수 * 4 == metadata 개수임
+
+    Args:
+        in_file_fashion: 패션 아이템 DB. default to './data/mdata.wst.txt.2023.01.26'
+        coordi_size: 하나의 코디를 구성하는 패션 아이템의 개수. default to 4
+        meta_size: 패션 아이템 메타데이터의 특징 종류 개수. default to 4.
+
+    Return:
+        names: 패션 아이템의 이름을 저장해둔 리스트
+        metadata:
+        패션 아이템의 metadata를 저장해둔 리스트.
+        여기서 metadata는 패션 아이템의 형태 특징을 텍스트로 설명한 데이터를 의미함.
     """
     print('loading fashion item metadata')
     with open(in_file, encoding='euc-kr', mode='r') as fin:
@@ -96,7 +118,13 @@ def _load_fashion_item(in_file, coordi_size, meta_size):
 def _position_of_fashion_item(item):
     """
     function: get position of fashion items
-    item: fashion item의 이름(string) 
+    패션 아이템이 어떤 카테고리에 속하는지 알아낼 때 사용하는 함수
+
+    Args:
+        item: 패션 아이템의 이름(string)
+    
+    Return:
+        idx: 해당 패션 아이템이 몇 번째 카테고리에 속하는지 나타내는 인덱스
     """
     prefix = item[0:2] # item이 "BL-001" 이런 식이기 때문에 하이픈 앞의 상품 카테고리를 prefix로 설정
 
@@ -122,8 +150,14 @@ def _insert_into_fashion_coordi(coordi, items):
     """
     function: insert new items into previous fashion coordination
     이전 패션 코디 추천에 새로운 아이템을 추가(대체)할 때 사용하는 함수.
-    여러 번의 대화를 통해, 초기에 코디 봇이 추천한 조합이 변경되는 경우가 잦고
+
+    초기에 코디 봇이 추천한 조합이 여러 번의 대화를 거쳐 변경되는 경우가 잦고,
+    일부 아이템만 추천하는 경우가 종종 있음(4개가 아닌 2개나 3개를 추천하는 경우)
     이를 대처하기 위해 사용하는 함수로 보임.
+
+    Args:
+        coordi: 코디 리스트. e.g., [outer, top, bottom, shoes]
+        items: 패션 아이템의 이름들. e.g., [JK-001, BL-001, ...]
     """
     new_coordi = coordi[:]
     for item in items:
@@ -133,9 +167,12 @@ def _insert_into_fashion_coordi(coordi, items):
         cl_new_item = new_item[len(new_item)-1]
 
         # cl_new_item: 패션 아이템의 이름.
+        # 패션 아이템의 이름을 가지고 해당 아이템이 어떤 카테고리에 속하는지 알아냄
         pos = _position_of_fashion_item(cl_new_item)
 
-        if cl_new_item[0:2]=='OP': # OP == 원피스
+        # 예외처리: 원피스의 경우 2번 카테고리에 속하는데, 상/하의를 구분하지 않으므로
+        # 상의를 'NONE-TOP'으로 초기화
+        if cl_new_item[0:2]=='OP':
             new_coordi[1] = 'NONE-TOP'
 
         new_coordi[pos] = cl_new_item
@@ -146,8 +183,19 @@ def _insert_into_fashion_coordi(coordi, items):
 def _load_trn_dialog(in_file):
     """
     function: load training dialog DB
-    모델 학습에 사용할 대화 DB를 불러올 때 사용하는 함수입니다.
-    in_file은 기본값으로 ./data/task1.ddata.wst.txt로 설정되어 있습니다.
+    모델 학습에 사용할 대화 DB를 불러올 때 사용하는 함수
+
+    Args:
+        in_file: default to './data/task1.ddata.wst.txt'
+
+    Return:
+        data_utter: DB 속 대화들이 저장된 리스트
+        data_coordi: DB 속 추천한 코디들이 저장된 리스트. 
+        data_reward_last: DB 속 대화에 대한 TAG들이 저장된 리스트
+        np.array(delim_utter, dtype='int32'): episode별로 대화를 나누기 위한 인덱스들을 저장한 리스트
+        np.array(delim_coordi, dtype='int32'): episode별로 코디를 나누기 위한 인덱스들을 저장한 리스트
+        np.array(delim_reward, dtype='int32'): episode별로 TAG를 나누기 위한 인덱스들을 저장한 리스트
+
     """
     print('loading dialog DB')
     with open(in_file, encoding='euc-kr', mode='r') as fin:
@@ -293,7 +341,18 @@ def _load_trn_dialog(in_file):
 
 def _load_eval_dialog(in_file, num_rank):
     """
-    function: load test dialog DB    
+    function: load test dialog DB
+    모델 성능 평가에 사용할 DB를 불러올 때 사용하는 함수.
+    에피소드별로 대화와 코디, rank를 저장함.
+
+    Args:
+        in_file: test dialog DB의 경로. default to './data/cl_eval_task1.wst.dev'
+        num_rank: 추천할 코디 조합의 개수. default to 3
+
+    Return:
+        data_utter: 에피소드별 대화가 저장되어있는 리스트
+        data_coordi: 에피소드별 코디가 저장되어있는 리스트
+        data_rank: 에피소드별 순위가 저장되어있는 리스트
     """
     print('loading dialog DB')
     with open(in_file, encoding='euc-kr', mode='r') as fin:
@@ -302,40 +361,60 @@ def _load_eval_dialog(in_file, num_rank):
         num_dialog = 0
         num_utter = 0
         is_first = True
-        for line in fin.readlines():
-            line = line.strip()
-            if line[0] == ';':
-                if line[2:5] == 'end':
+
+        for line in fin.readlines(): # 한 줄씩 읽어서
+            line = line.strip() # 불필요한 문자 제거
+
+            # 평가용 DB 속 대화문의 시작은 세미콜론임
+            # 마지막 줄은 ; end임
+            if line[0] == ';': # 대화문의 시작 부분이고
+                if line[2:5] == 'end': # DB의 마지막이면 탈출
                     break
-                if is_first:
-                    is_first = False
-                else:
-                    data_utter.append(tot_utter)
-                    data_coordi.append(tot_coordi)
-                tot_utter = []
-                tot_coordi = []
-                num_dialog += 1
+
+                if is_first: # DB의 첫 번째 대화라면
+                    is_first = False # 이후 대화문들을 다르게 처리하기 위해 False로 변환
+                else: # DB의 첫 번째 대화가 아니라면
+                    data_utter.append(tot_utter) # 이전 에피소드의 대화들을 저장
+                    data_coordi.append(tot_coordi) # 이전 에피소드의 코디들을 저장
+
+                tot_utter = [] # 대화문들을 저장하는 리스트
+                tot_coordi = [] # 대화문별 코디를 저장하는 리스트
+                num_dialog += 1 # 새로운 대화문이 시작되었으므로 카운팅
+
+            # US: 사용자, CO: 코디봇.
+            # 사용자 혹은 코디봇의 대화라면
             elif line[0:2] == 'US' or line[0:2] == 'CO':
-                utter = line[2:].strip()
-                tot_utter.append(utter)
-                num_utter += 1
+                utter = line[2:].strip() 
+                tot_utter.append(utter) # 대화문을 utter에 추가 
+                num_utter += 1 # 개수 카운팅
+
+            # R: Recommendation. 추천한 상품 조합을 의미
             elif line[0] == 'R':
-                coordi = line[2:].strip()
+                coordi = line[2:].strip() # 패션 코디를 가져와서
                 new_coordi = ['NONE-OUTER', 
                               'NONE-TOP',  
                               'NONE-BOTTOM', 
                               'NONE-SHOES']
-                new_coordi = _insert_into_fashion_coordi(new_coordi, 
-                                                         coordi.split())
+                
+                # new_coordi에 가져온 패션 코디를 추가
+                new_coordi = _insert_into_fashion_coordi(new_coordi, coordi.split())
                 tot_coordi.append(new_coordi)
+        
+        # 추가되지 않은 마지막 대화문과 코디를 추가
         if not is_first:
             data_utter.append(tot_utter)
             data_coordi.append(tot_coordi)
+
+        # 얘는 아직 역할 모르겠음
         data_rank = []
         rank = 0    
+        
+        # 모든 에피소드 개수만큼
         for i in range(len(data_coordi)):
-            data_rank.append(rank)
+            data_rank.append(rank) # 0을 추가. 0 추가의 의미는 아직 모름
+
         print('# of dialog: {} sets'.format(num_dialog))
+
         return data_utter, data_coordi, data_rank
         
 
@@ -500,7 +579,14 @@ def _vectorize_dlg(swer, dialog):
 def _vectorize(swer, data):
     """
     function: vectorize dialogs
-    모든 dialog를 벡터화하는 함수   
+    모든 dialog를 벡터화하는 함수
+
+    Args:
+        swer: Subword Embedding 객체
+        data: 에피소드별 대화가 저장되어있는 변수
+
+    Return:
+        vec: 에피소드별 대화를 임베딩 벡터로 변환해서 저장한 배열
     """
     print('vectorizing data')
     vec = []
@@ -516,20 +602,32 @@ def _vectorize(swer, data):
 def _memorize(dialog, mem_size, emb_size):
     """
     function: memorize dialogs for end-to-end memory network
+    메모리 네트워크를 위해 dialogs를 기록하는 함수라고 적혀있는데,
+    그냥 shape을 동일하게 맞춰주기 위해 패딩을 수행하는 함수라고 생각하면 됨.
 
-    dialog: episode 별 dialog의 embedding 값.
-    e.g., dialog = np.array([np.array(ep1_embs), np.array(ep2_embs), ...])
+    Args:
+        dialog: episode 별 dialog의 embedding 값.
+        e.g., dialog = np.array([np.array(ep1_embs), np.array(ep2_embs), ...])
 
-    mem_size: memory size for the MemN2N. 역할은 아직 모름. default to 16
-    emb_size: embedding DB의 차원이고, 128로 설정되어 있음.
+        mem_size: memory size for the MemN2N. 역할은 아직 모름. default to 16
+        emb_size: embedding DB의 차원이고, 128로 설정되어 있음.
+    
+    Return:
+        np.array(memory, dtype='float32'):
+        동일한 shape을 갖는 dialog embedding 값.
+        shape: (에피소드 개수, 16, 128)
     """
     print('memorizing data')
     zero_emb = np.zeros((1, emb_size)) # (1, 128)
     memory = []
 
-    # 학습에 사용할 dialog DB의 전체 개수만큼 반복하는데
+    # 모든 에피소드의 개수만큼 반복
     for i in range(len(dialog)):
-        idx = max(0, len(dialog[i]) - mem_size) # 
+        # 특정 에피소드의 대화 개수에서 mem_size를 빼고, max()를 통해 idx를 세팅
+        idx = max(0, len(dialog[i]) - mem_size)
+
+        # 만약 대화 개수가 mem_size보다 큰 경우, mem_size 크기만큼 잘라내고
+        # 작은 경우 mem_size 크기에 맞도록 zero padding을 수행함
         ss = dialog[i][idx:]
         pad = mem_size - len(ss)  
         for i in range(pad):
@@ -564,9 +662,9 @@ def _make_ranking_examples(dialog, coordi, reward, item2idx, idx2item,
         data_rank: 에피소드별 위치?를 저장해둔 리스트(아직 사용하는 이유는 파악하지 못함)
     """
     print('making ranking_examples')
-    data_dialog = [] #
-    data_coordi = [] #
-    data_rank = [] #
+    data_dialog = []
+    data_coordi = []
+    data_rank = []
     idx = np.arange(num_rank) # num_rank: 3이므로 idx = np.array([0, 1, 2])
     rank_lst = np.array(list(permutations(idx, num_rank))) # [0, 1, 2]에서 3개로 순열을 만듦
     num_item_in_coordi = len(coordi[0][0]) # 4. 하나의 코디 내에 몇 개의 아이템이 있는지 의미
@@ -697,6 +795,7 @@ def _replace_item(crd, item2idx, idx2item, similarities, pos, thres):
     예를 들어, [item1, item2, item3, item4]와 같은 조합이 있다면, item 1, 2, 3, 4는 모두 다른 카테고리에 속해있는 것.
     _replace_item을 호출할 때 4개의 카테고리 중 n개를 뽑아 순열을 만들고, 만든 순열 중에 무작위로 하나를 선택해서 pos로 넘겨줌.
     즉 pos는 crd에서 replace할 패션 아이템의 카테고리 위치를 나타내는 변수임.
+
     thres: cos_sim에 대한 threshold 값
     """
     new_crd = crd[:] # crd를 new_crd에 복사
@@ -765,24 +864,27 @@ def _convert_one_coordi_to_metadata(one_coordi, coordi_size,
     Args:
         one_coordi: 하나의 코디 조합. e.g., [33, 254, 11, 84]
         coordi_size: default to 4
-        metadata: 패션 아이템의 임베딩 값이 저장된 리스트
+        metadata:
+        패션 아이템의 임베딩 값이 저장되어있음.
+        4개의 카테고리로 나뉘어져 있으며, 각 카테고리에 속하는 패션 아이템의 임베딩 값은 (1, 512) 형태를 가짐.
+
         img_feats: use_multimodal 옵션이 True일 때만 값이 존재. default to None.
 
     Return:
-        items: 하나의 패션 아이템 조합에 대한 임베딩 값들
+        items: 하나의 패션 아이템 조합에 대한 임베딩 값들.
     """
     if img_feats is None: # img_feats가 없으면
         items = None # items를 초기화해주고
         for j in range(coordi_size): # 4번 반복하는데
             
             # 특정 카테고리의 메타데이터에서 코디 index로 패션 아이템의 임베딩 값을 가져오고
-            buf = metadata[j][one_coordi[j]]
+            buf = metadata[j][one_coordi[j]] # (512, )
 
             # 첫 아이템이라면 items에 추가, 그게 아니면 concat
             if j == 0:
                 items = buf[:]
             else:
-                items = np.concatenate([items[:], buf[:]], axis=0)
+                items = np.concatenate([items[:], buf[:]], axis=0) # (512 * coordi_size)
 
     else: # img_feats이 있는 경우(일단은 pass)
         items_meta = None
@@ -816,13 +918,18 @@ def _convert_dlg_coordi_to_metadata(dlg_coordi, coordi_size,
     Args:
         dlg_coordi: 한 개의 에피소드에 있는 코디들이 저장된 리스트. 각 코디는 패션 아이템에 대응되는 index로 이루어져 있음.
         coordi_size: default to 4
-        metadata: 패션 아이템의 임베딩 값이 저장된 리스트
+        metadata:
+        패션 아이템의 임베딩 값이 저장되어있음.
+        4개의 카테고리로 나뉘어져 있으며, 각 카테고리에 속하는 패션 아이템의 임베딩 값은 (1, 512) 형태를 가짐.
+
         img_feats: use_multimodal 옵션이 True일 때만 값이 존재. default to None.
 
     Return:
-        scripts: 임베딩 값들이 저장된 array. scripts.shape: (3, 4, 128), (코디 개수, 카테고리 개수, 임베딩 벡터의 차원)
+        scripts:
+        임베딩 값들이 저장된 array.
+        scripts.shape: (3, 2048), (코디 개수, 카테고리 개수 * 패션 아이템 임베딩 벡터의 차원)
     """
-    # 에피소드의 첫 번째 코디를 임베딩 값으로 변환. shape: (4, 128)
+    # 에피소드의 첫 번째 코디를 임베딩 값으로 변환. shape: (2048, )
     items = _convert_one_coordi_to_metadata(dlg_coordi[0], coordi_size, metadata, img_feats)
 
     # 에피소드의 첫 번째 코디를 저장
@@ -831,7 +938,7 @@ def _convert_dlg_coordi_to_metadata(dlg_coordi, coordi_size,
     # 에피소드의 첫 번째 코디에 대한 임베딩 값을 저장
     prev_items = items[:]
 
-    # 차원 하나를 추가. scripts.shape: (1, 4, 128)
+    # 차원 하나를 추가. scripts.shape: (1, 4, 512)
     scripts = np.expand_dims(items, axis=0)[:]
 
     # dlg_coordi.shape: (3, 4)
@@ -865,7 +972,10 @@ def _convert_coordi_to_metadata(coordi, coordi_size,
         coordi1 = [33, 204, 12, 99], coordi2 = [66, 593, 21, 33], ...
 
         coordi_size: default to 4
-        metadata: 패션 아이템의 임베딩 값이 저장되어있음.
+        metadata:
+        패션 아이템의 임베딩 값이 저장되어있음.
+        4개의 카테고리로 나뉘어져 있으며, 각 카테고리에 속하는 패션 아이템의 임베딩 값은 (1, 512) 형태를 가짐.
+
         img_feats: use_multimodal 옵션이 True일 때만 값이 존재. default to None.
     
     Returns:
@@ -940,6 +1050,7 @@ def _shuffle_one_coordi_and_ranking(rank_lst, coordi, num_rank):
     function: shuffle fashion coordinations
     패션 아이템 조합을 섞을 때 사용하는 함수.
     모델의 일반화 성능을 높이기 위해, 다양한 시나리오로 모델을 학습시키려고 사용하는 것 같음.
+    (모델이 단순히 순열의 순서를 암기하는 것을 방지하는 것)
 
     rank_lst: np.array(list(permutations(np.arange(num_rank), num_rank)))
               num_rank 범위 내의 숫자를 가지고 num_rank개의 element를 갖는 순열들을 모아둔 변수
@@ -953,9 +1064,12 @@ def _shuffle_one_coordi_and_ranking(rank_lst, coordi, num_rank):
     for k in range(len(rank_lst)):
         # idx랑 rank_lst[k]랑 같으면
         if np.array_equal(idx, rank_lst[k]):
-            # rank 변수에 k 값을 저장함
-            # 순열에서 idx가 몇 번째에 위치하는지를 rank에 저장하는 건데, 이게 왜 필요한지는 아직 모름(학습 원리를 알아야할 것 같음)
-            rank = k 
+            rank = k # rank 변수에 k 값을 저장함
+            # num_rank가 3일 때 rank_lst는 [(0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0)]
+            # 순열 기반 시스템에서 rank_lst의 순서는 사용자의 선호도가 반영되었다고 간주
+            # 따라서 (0, 1, 2) 순서의 조합이 가장 올바르고, (2, 1, 0) 순서의 조합이 가장 부적절하다고 생각할 수 있음.
+            # 다만 순서를 섞지 않고 모델을 학습시키는 경우 순서만 암기할 수도 있음
+            # 이를 방지하기 위해 원래 코디 조합의 순서를 섞어주고, 대응되는 rank를 정답으로 사용.
             break
 
     rand_crd = []
@@ -969,27 +1083,53 @@ def _shuffle_one_coordi_and_ranking(rank_lst, coordi, num_rank):
 
 def shuffle_coordi_and_ranking(coordi, num_rank):
     """
-    function: shuffle fashion coordinations   
+    function: shuffle fashion coordinations
+
+    Args:
+        coordi:
+        에피소드별로 구분된 평가용 코디 임베딩.
+        shape: (전체 에피소드 개수, 3, 2048)
+
+        num_rank:
+        추천할 조합의 개수. default to 3.
+
+    Return:
+        data_coordi_rand:
+        data_rank:
     """
     data_rank = []
-    data_coordi_rand = []        
+    data_coordi_rand = []
+
     idx = np.arange(num_rank)
     rank_lst = np.array(list(permutations(idx, num_rank)))
+
+    # 전체 에피소드 개수만큼 반복
     for i in range(len(coordi)):
+        # idx를 무작위로 섞어주고
         idx = np.arange(num_rank)
         np.random.shuffle(idx)
+
+        # 무작위로 섞은 idx와 동일한 순열의 rank_lst 위치를 저장 -> 성능 평가를 위함
         for k in range(len(rank_lst)):
             if np.array_equal(idx, rank_lst[k]):
                 rank = k
                 break
+        
+        # 성능 평가를 위해 data_rank에 추가해두고
         data_rank.append(rank)
+
+        # 원래 코디 조합의 순서를 무작위로 섞은 idx 순서로 변경
         coordi_rand = []
         crd = coordi[i]
         for k in range(num_rank):
             coordi_rand.append(crd[idx[k]])
+        
+        # 섞은 코디를 추가
         data_coordi_rand.append(coordi_rand)
+
     data_coordi_rand = np.array(data_coordi_rand, dtype='float32')    
     data_rank = np.array(data_rank, dtype='int32')
+
     return data_coordi_rand, data_rank
 
 
@@ -1020,6 +1160,23 @@ def make_metadata(in_file_fashion, swer, coordi_size, meta_size,
     """
     function: make metadata for training and test
     training/test에 맞게 metadata를 만들때 사용하는 함수
+
+    Args:
+        in_file_fashion: 패션 아이템 DB. default to './data/mdata.wst.txt.2023.01.26'
+        swer: Subword Embedding 객체
+        coordi_size: 하나의 코디를 구성하는 패션 아이템의 개수. default to 4
+        meta_size: 패션 아이템 메타데이터의 특징 종류 개수. default to 4.
+        use_multimodal: multimoda input 옵션. default to False.
+        in_file_img_feats: 패션 아이템의 이미지 피처. use_multimodal option이 True일 때만 사용됨.
+        feat_size: 이미지 피쳐의 크기. default to 4096.
+
+    Return:
+        slot_item: 4개의 카테고리로 묶여진 패션 아이템의 임베딩 값들.
+        idx2item: idx를 기반으로 패션 아이템 이름을 검색할 수 있음. List[dict] 형태.
+        item2idx: 패션 아이템 이름을 기반으로 idx를 검색할 수 있음. List[dict] 형태.
+        item_size: 각 카테고리마다 몇 개의 패션 아이템이 있는지에 대한 정보가 담겨있음.
+        vec_similarities: 패션 아이템 간의 cos_sim 값을 계산한 배열.
+        slot_feat: (아직 파악 못함)
     """
     ### added ###
     # pdb.set_trace()
@@ -1103,13 +1260,23 @@ def make_io_data(mode, in_file_dialog, swer, mem_size, coordi_size,
         img_feats: use_multimodal 옵션이 False이면 None이 담겨있고, True면 다른 값(어떤 값인지는 아직 모름)이 들어감.
     
     Returns:
-        mem_dialog: MemN2N에 사용할 값(아직 정확히 모름)
-        vec_coordi: 모든 코디들에 대한 임베딩 값이 담겨있는 벡터
-        data_rank: 에피소드별 위치를 저장해 둔 리스트인데, 모델 구조나 학습 원리까지 알아야 이해할 수 있을 듯
+        mem_dialog:
+        MemN2N에 사용할 대화 임베딩 값들.
+        shape: (num_episodes, mem_size, emb_size)
+        
+        vec_coordi:
+        모든 코디들에 대한 임베딩 값이 담겨있는 벡터.
+        shape: (num_episodes, num_rnk, emb_size * 4)
+        
+        data_rank:
+        에피소드별 위치를 저장해 둔 리스트인데, 모델 구조나 학습 원리까지 알아야 이해할 수 있을 듯.
+        shape: (num_episodes, )
     """
     print('\n<Make input & output data>')
+    
     if not os.path.exists(in_file_dialog):
         raise ValueError('{} do not exists.'.format(in_file_dialog))
+    
     if mode == 'prepare':
         # load training dialog DB: 학습 대화 DB를 불러오고 
         dialog, coordi, reward, delim_dlg, delim_crd, delim_rwd = \
@@ -1126,9 +1293,8 @@ def make_io_data(mode, in_file_dialog, swer, mem_size, coordi_size,
                                            idx2item, similarities, num_rank, 
                                            num_perm, num_aug, corr_thres)
     
-    ### 분석중... ###
     elif mode == 'eval':
-        # load test dialog DB    
+        # load test dialog DB: 평가에 사용할 DB를 불러옴.
         data_dialog, data_coordi, data_rank = \
                                     _load_eval_dialog(in_file_dialog, num_rank)
 
@@ -1138,21 +1304,17 @@ def make_io_data(mode, in_file_dialog, swer, mem_size, coordi_size,
     
     # embedding: episode 단위로 잘린 data_dialog를 embedding 벡터로 변환.
     # data_dialog 형태: [[0번째 에피소드의 dialog], [1번째 에피소드의 dialog], ...]
-    # _make_ranking_examples에서 aug가 들어가기 때문에 dialog가 중복될 수 있음
     vec_dialog = _vectorize(swer, data_dialog)
     emb_size = swer.get_emb_size() # 128
 
-    ### 분석중... ###
-    # memorize for end-to-end memory network
+    # memorize for end-to-end memory network:
+    # MemN2N 모델 학습에 사용할 수 있게 vec_dialog의 shape을 맞춰주는 과정
     mem_dialog = _memorize(vec_dialog, mem_size, emb_size)
 
     # fashion item numbering: 코디 속 패션 아이템의 이름들을 index로 바꾸는 과정
     idx_coordi = _indexing_coordi(data_coordi, coordi_size, item2idx)
 
     # convert fashion item to metadata: 패션 아이템 index를 임베딩 값으로 바꾸는 과정
-    # vec_coordi.shape: (데이터의 에피소드 개수, 코디 개수(추천 개수), 카테고리 개수, 임베딩 차원)
-    # e.g., (3, 3, 4, 128): 총 3개의 에피소드가 있고, 각 에피소드는 3개의 코디를 가지며,
-    # 각각의 코디는 4개의 아이템을 가지고, 하나의 아이템은 (1, 128) 차원의 임베딩 벡터이다.
     vec_coordi = _convert_coordi_to_metadata(idx_coordi, coordi_size, 
                                              metadata, img_feats)
     

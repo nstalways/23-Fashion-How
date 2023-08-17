@@ -27,7 +27,7 @@ SOFTWARE.
 Update: 2023.02.15.
 '''
 
-
+# Synaptic Intelligence
 import torch
 
 def update_omega(_model, _device, W, epsilon):
