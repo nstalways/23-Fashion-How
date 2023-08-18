@@ -4,10 +4,10 @@ init: # 실험 초기 세팅 관련 args
   model_path: './gAIa_CL_model' # 모델을 저장한 경로
   # model_file: 'gAIa-final.pt' # 모델 이름
   model_file: 
-  epochs: 20 # 학습 에폭
-  save_freq: 5 # 모델 저장 주기
+  epochs: 100 # 학습 에폭
+  save_freq: 10 # 모델 저장 주기
   evaluation_iteration: 10 # 평가 반복 횟수(같은 데이터를 여러 번 평가하는 것)
-  use_cl: True # continual learning을 적용 여부
+  use_cl: False # continual learning을 적용 여부
 
 data: # 실험에 사용할 데이터 관련 args
   in_file_trn_dialog: './data/task1.ddata.wst.txt' # 학습 DB
