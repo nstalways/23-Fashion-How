@@ -24,7 +24,7 @@ def load_cfg(cfg_name: str) -> dict:
     ROOT = "./configs"
     yaml_path = os.path.join(ROOT, cfg_name)
 
-    with open(yaml_path) as f:
+    with open(yaml_path, encoding='utf-8') as f:
         cfg_dict = yaml.safe_load(f)
     
     return cfg_dict

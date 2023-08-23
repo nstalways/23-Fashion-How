@@ -50,7 +50,6 @@ from ctypes import cdll, create_string_buffer
 
 ### added ###
 import pdb
-import yaml
 
 
 def _load_fashion_item(in_file, coordi_size, meta_size):
