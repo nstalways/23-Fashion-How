@@ -191,6 +191,14 @@ class gAIa(object):
                     self._metadata, self._meta_similarities, self._num_rnk,
                     args.num_augmentation, args.num_augmentation, 
                     args.corr_thres, self._feats)
+            
+            # 불러온 validation set을 evaluation에 맞게 db shuffling
+            self._tst_crd_per_iter, self._tst_rnk_per_iter = [], []
+            for _ in range(self._num_eval):
+                coordi, rnk = shuffle_coordi_and_ranking(self._tst_crd, self._num_rnk)
+
+                self._tst_crd_per_iter.append(coordi)
+                self._tst_rnk_per_iter.append(rnk)
         
         # prepare DB for evaluation: 모델 성능 평가에 사용할 DB를 준비
         # TODO: mode에 따라 불러오는 data가 다름 -> 한 번에 불러와서, 학습 과정에 성능 평가가 되도록 코드 수정
@@ -427,7 +435,7 @@ class gAIa(object):
 
         return preds, eval_num_examples
     
-    def _evaluate(self, eval_dlg, eval_crd):
+    def _evaluate(self, eval_dlg, eval_crd, eval_crd_per_iter=[], eval_rnk_per_iter=[]):
         """
         evaluate
 
@@ -439,6 +447,11 @@ class gAIa(object):
             eval_crd:
             에피소드별로 구분된 평가용 코디 임베딩.
             shape: (전체 에피소드 개수, 3, 2048)
+
+            eval_crd_per_iter, eval_rnk_per_iter:
+            evaluation을 동일한 데이터로 하기 위해 사용하는 변수.
+            shuffle_coordi_and_ranking 함수를 호출할 때 코디와 순위가 무작위로 섞이기 때문에,
+            본 함수를 호출할 때 마다 validation 데이터의 구성이 달라지는데, 이를 방지하기 위해 사용.
 
         Return:
             repeated_preds:
@@ -459,12 +472,20 @@ class gAIa(object):
 
         # self._num_eval: 입력의 순서를 바꿔 여러번 평가를 진행하기 위해 설정하는 hparam
         # 평가 data를 한 번만 사용하는 것이 아닌, self._num_eval만큼 반복해서 사용
-        # 이유는 아직 모르겠음...
         for i in range(self._num_eval):
             preds = []
+            
+            # 평가용 데이터가 만들어져 있다면
+            if eval_crd_per_iter and eval_rnk_per_iter:
+                # iteration 별 데이터를 가져와서 evaluation에 사용
+                coordi = eval_crd_per_iter[i]
+                rnk = eval_rnk_per_iter[i]
+                
+            # 평가용 데이터를 새로 만들어야 한다면
+            else:
+                # DB Shuflling: 패션 아이템의 다양한 조합에 대한 모델의 순위 예측 성능을 확인하기 위해 shuffling
+                coordi, rnk = shuffle_coordi_and_ranking(eval_crd, self._num_rnk)
 
-            # DB shuffling: 평가용 데이터도 섞어줌(굳이 섞어주는 이유는 잘 모르겠음)
-            coordi, rnk = shuffle_coordi_and_ranking(eval_crd, self._num_rnk)
             coordi = torch.tensor(coordi).to(self._device)
 
             for start in range(0, eval_num_examples, self._batch_size):
@@ -663,23 +684,18 @@ class gAIa(object):
             print('Loss: {:.4f}'.format(torch.mean(torch.tensor(losses))))
             print('-'*50)
 
-            # wandb logging - train
-            wandb.log({
-                    "Train/Epoch": curr_epoch,
-                    "Train/Mean_CE_Loss": torch.mean(torch.tensor(losses))
-                    })
-
             if curr_epoch % self._save_freq == 0:
                 file_name = os.path.join(self._model_path, 
                                          'gAIa-{}.pt'.format(curr_epoch))
                 torch.save({'model': self._model.state_dict()}, file_name)
-            
+
             # evaluation
             print('\n<Evaluate>')
             self._model.eval()
 
             time_start = timeit.default_timer()
-            repeated_preds, test_corr, num_examples = self._evaluate(self._tst_dlg, self._tst_crd)
+            repeated_preds, test_corr, num_examples = self._evaluate(self._tst_dlg, self._tst_crd,
+                                                                     self._tst_crd_per_iter, self._tst_rnk_per_iter)
             time_end = timeit.default_timer()
 
             print('-'*50)
@@ -689,10 +705,12 @@ class gAIa(object):
             print('Best WKTC: {:.4f}'.format(np.max(test_corr)))
             print('-'*50)
 
-            # wandb logging - validation
+            # wandb logging
             wandb.log({
-                "Val/Epoch": curr_epoch,
-                "Val/Mean_WKTC": np.mean(test_corr)
+                "Epoch": curr_epoch,
+                "Train/Mean_CE_Loss": torch.mean(torch.tensor(losses)),
+                "Val/Mean_WKTC": np.mean(test_corr),
+                "Val/Best_WKTC": np.max(test_corr)
             })
 
 
