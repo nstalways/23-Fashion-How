@@ -4,6 +4,5 @@ __pycache__
 README.pdf
 
 # sub_task3
-sub_task3/gAIa_CL_model/*
-sub_task3/sstm_v0p5_deploy/*
-sub_task3/wandb/*
+sub_task3_custom/gAIa_CL_model/*
+sub_task3_custom/sstm_v0p5_deploy/*
