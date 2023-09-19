@@ -102,7 +102,6 @@ class PolicyNet(nn.Module):
                 'layer%s_linear'%(i+1): nn.Linear(num_in, num_out)}) 
             mlp_eval_list.update({
                 'layer%s_relu'%(i+1): nn.ReLU()})
-                # 'layer%s_silu'%(i+1): nn.SiLU()}) # ReLU -> SiLU 교체
             
             if use_batch_norm:
                 mlp_eval_list.update({

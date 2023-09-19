@@ -23,8 +23,8 @@ class SubWordEmbReaderUtil:
 
         Args:
             data_path (str, optional):
-            Subword에 대한 임베딩 벡터들이 저장되어있는 파일 경로입니다.
-            Defaults to './sstm_v0p5_deploy/sstm_v4p49_np_n36134_d128.dat'.
+                Subword에 대한 임베딩 벡터들이 저장되어있는 파일 경로입니다.
+                Defaults to './sstm_v0p5_deploy/sstm_v4p49_np_n36134_d128.dat'.
         """
         print('\n<Initialize subword embedding>')
         print('loading=', data_path)
@@ -37,15 +37,17 @@ class SubWordEmbReaderUtil:
             self._emb_size = self._emb_np.shape[1]
 
     def get_emb_size(self) -> int:
-        """임베딩 벡터의 크기를 반환합니다.
-        128로 고정되어 있습니다.
+        """
+        임베딩 벡터의 크기를 반환합니다. 128로 고정되어 있습니다.
         """
         return self._emb_size
     
     def _normalize_func(self, s):
-        """단어 단위의 텍스트 메타데이터를 normalize할 때 사용합니다.
+        """
+        단어 단위의 텍스트 메타데이터를 normalize할 때 사용합니다.
+
         이미지에서 normalize의 역할은 outlier로 인한 학습의 불안정성을 해소하는 것인데,
-        텍스트 역시 outlier가 있을 수 있으니 동일하게 normalize한다고 생각하면 편합니다.
+        텍스트 역시 outlier가 있을 수 있으니 normalize를 적용합니다.
 
         Args:
             s (_type_): 단어 단위의 텍스트 메타데이터
@@ -63,7 +65,8 @@ class SubWordEmbReaderUtil:
         return s1
 
     def _word2syllables(self, word):
-        """단어를 syllables(음절)로 변환할 때 사용하는 함수입니다.
+        """
+        단어를 syllables(음절)로 변환할 때 사용하는 함수입니다.
         e.g., 자연어 -> '자', '연', '어'
 
         Args:
@@ -80,7 +83,8 @@ class SubWordEmbReaderUtil:
         return syl_list
 
     def _get_cngram_syllable_wo_dic(self, word, min, max):
-        """n개의 음절을 가져다가 subword를 만들 때 사용하는 함수입니다.
+        """
+        n개의 음절을 가져다가 subword를 만들 때 사용하는 함수입니다.
         e.g., 자연어 -> ["<_자", "<_자_연", "<_자_연_어", "자_연", "자_연_어", "자_연_어_>", ...]
 
         Args:
@@ -109,7 +113,8 @@ class SubWordEmbReaderUtil:
         return subword
 
     def _get_word_emb(self, w):
-        """단어 단위의 임베딩을 수행합니다.
+        """
+        단어 단위의 임베딩을 수행합니다.
 
         Args:
             w (_type_): 단어 단위의 텍스트 메타데이터입니다.
@@ -131,7 +136,8 @@ class SubWordEmbReaderUtil:
         return d
 
     def get_sent_emb(self, s: str):
-        """문장 단위의 텍스트 메타데이터에 대한 벡터를 가져옵니다.
+        """
+        문장 단위의 텍스트 메타데이터에 대한 벡터를 가져옵니다.
 
         Args:
             s (str): 문장 단위의 텍스트 메타데이터입니다.
@@ -154,7 +160,8 @@ class SubWordEmbReaderUtil:
 
 
 def _vectorize_sent(swer, sent):
-    """_summary_
+    """
+    문장 단위의 텍스트 메타데이터를 벡터로 변환할 때 사용합니다.
 
     Args:
         swer (_type_): 벡터 변환에 사용하는 객체입니다.
@@ -166,7 +173,8 @@ def _vectorize_sent(swer, sent):
 
 
 def _vectorize_dlg(swer, dialog):
-    """텍스트 메타데이터를 벡터로 변환할 때 사용합니다.
+    """
+    하나의 대화를 구성하는 텍스트 메타데이터들을 벡터로 변환할 때 사용합니다.
 
     Args:
         swer (_type_): 벡터 변환에 사용하는 객체입니다.
@@ -184,7 +192,8 @@ def _vectorize_dlg(swer, dialog):
 
 
 def _vectorize(swer, data: List[List[str]]):
-    """data 속 텍스트 데이터들을 모두 벡터로 변환하는 함수입니다.
+    """
+    data 속 텍스트 데이터들을 모두 벡터로 변환하는 함수입니다.
 
     Args:
         swer (_type_): SubWordEmb 객체입니다.
@@ -203,9 +212,9 @@ def _vectorize(swer, data: List[List[str]]):
     return vec
 
 
-# TODO
 def _memorize(dialog: np.ndarray, mem_size: int=16, emb_size: int=128):
-    """벡터로 변환된 대화문에서 mem_size 만큼의 대화문을 추출합니다.
+    """
+    벡터로 변환된 대화문에서 mem_size 만큼의 대화문을 추출합니다.
 
     Args:
         dialog (np.ndarray): 벡터로 변환된 대화문입니다.
@@ -224,7 +233,6 @@ def _memorize(dialog: np.ndarray, mem_size: int=16, emb_size: int=128):
     #     ss = dialog[i][idx:] # mem_size 만큼의 벡터를 추출
 
     #     # mem_size만큼의 벡터가 확보되지 않은 경우, zero padding 수행
-    #     # TODO: 텍스트에서 zero padding 말고 다른 padding 방법이 없는지 찾아보기
     #     pad = mem_size - len(ss)
 
     #     for i in range(pad):
@@ -257,7 +265,8 @@ def _memorize(dialog: np.ndarray, mem_size: int=16, emb_size: int=128):
 
 
 def _make_one_coordis_to_all_ranking(rank_lst: np.ndarray, coordi: List[List[str]], num_rank: int=3):
-    """주어진 coordi로 추천 가능한 모든 순서를 만드는 함수입니다.
+    """
+    주어진 coordi로 추천 가능한 모든 순서를 만드는 함수입니다.
 
     shuffle로 인해 특정 순서의 조합만 데이터에 포함되는 것을 방지합니다.
 
@@ -283,7 +292,6 @@ def _make_one_coordis_to_all_ranking(rank_lst: np.ndarray, coordi: List[List[str
     return all_ranks, all_coordis
 
 
-# TODO
 def _make_ranking_examples(dialog: List[List[str]], coordi: List[List[List[str]]], reward: List[List[str]],
                            item2idx: List[dict], idx2item: List[dict], similarities: np.ndarray,
                            num_rank: int=1, num_perm: int=1, num_aug: int=1, corr_thres: float=1.0):
@@ -384,6 +392,7 @@ def _make_ranking_examples(dialog: List[List[str]], coordi: List[List[List[str]]
                                     similarities, itm_lst[idx[0]], corr_thres)
             crd.append(crd_new)
 
+            ### custom code ###
             if num_perm == 0:
                 # 하나의 조합으로 모든 순열을 만든 뒤 데이터에 추가합니다.
                 all_ranks, all_crds = _make_one_coordis_to_all_ranking(rank_lst, crd, num_rank)
@@ -391,6 +400,7 @@ def _make_ranking_examples(dialog: List[List[str]], coordi: List[List[List[str]]
                 data_rank.extend(all_ranks)
                 data_dialog.extend([dialog[i] for _ in range(len(all_ranks))])
                 data_coordi.extend(all_crds)
+            ### custom code ###
 
             else:
                 for j in range(num_perm):
@@ -585,7 +595,6 @@ def _load_fashion_item(in_file: str, coordi_size: int, meta_size: int):
                     metadata.append(data)
                 
                 # 패션 아이템에 대한 설명. ex) 상의 스트레이트 실루엣
-                # TODO: 불용어 처리 코드 추가하기
                 data = w[4] 
                 for d in w[5:]:
                     data += ' ' + d

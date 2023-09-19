@@ -75,7 +75,7 @@ parser = argparse.ArgumentParser(description='AI Fashion Coordinator.')
 
 parser.add_argument('--seed', type=int,
                     default=2023,
-                    help='setting a global seed for experiment')
+                    help='setting a global seed for reproducibility')
 parser.add_argument('--mode', type=str, 
                     default='test',
                     help='training or eval or test mode')
@@ -179,7 +179,8 @@ if __name__ == '__main__':
 
     gaia = gAIa(args, get_udevice())
 
-    models = args.model_file.split(',')
+    if args.model_file:
+        models = args.model_file.split(',')
 
     if mode == 'train':
         gaia.train() # training
