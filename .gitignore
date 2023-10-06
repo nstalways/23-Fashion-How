@@ -6,3 +6,7 @@ README.pdf
 # sub_task3
 sub_task3_custom/gAIa_CL_model/*
 sub_task3_custom/sstm_v0p5_deploy/*
+after_competition/wandb/*
+after_competition/gAIa_CL_model/*
+after_competition/eval_result/*
+after_competition/test_result/*
