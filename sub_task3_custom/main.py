@@ -73,12 +73,18 @@ def str2bool(v):
 # input options
 parser = argparse.ArgumentParser(description='AI Fashion Coordinator.')
 
+parser.add_argument('--exp_name', type=str,
+                    default='exp_cl',
+                    help='name of experiment')
 parser.add_argument('--seed', type=int,
                     default=2023,
                     help='setting a global seed for reproducibility')
 parser.add_argument('--mode', type=str, 
-                    default='test',
+                    default='eval',
                     help='training or eval or test mode')
+parser.add_argument('--task_ids', type=str, 
+                    default='/1/1',
+                    help='task id of training data at last of currently evaluating model & task id of evaluation data')
 parser.add_argument('--in_file_trn_dialog', type=str, 
                     default='../data/task1.ddata.wst.txt', 
                     help='training dialog DB')
@@ -167,7 +173,7 @@ if __name__ == '__main__':
     print('\n')
 
     mode = args.mode    
-    if mode not in ['train', 'test', 'pred'] :
+    if mode not in ['train', 'test', 'eval', 'pred'] :
         raise ValueError('Unknown mode {}'.format(mode))
 
     set_seed(args.seed)
@@ -185,7 +191,7 @@ if __name__ == '__main__':
     if mode == 'train':
         gaia.train() # training
 
-    elif mode == 'test':
+    elif mode in ['eval', 'test']:
         if len(models) > 1:
             print('Using ensemble...')
             gaia.ensemble(models)
