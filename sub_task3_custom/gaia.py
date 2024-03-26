@@ -20,6 +20,7 @@ from file_io import *
 # custom modules
 from models.model import Model
 from si import surrogate_loss, update_omega
+from exp_utils import save_results
 
 # of items in fashion coordination      
 NUM_ITEM_IN_COORDI = 4
@@ -59,6 +60,9 @@ class gAIa(object):
         self._in_file_trn_dialog = args.in_file_trn_dialog
         self._use_cl = args.use_cl
         self._mode = args.mode
+        self._exp_name = args.exp_name
+        self._task_ids = args.task_ids
+
         use_dropout = args.use_dropout
 
         # Subword Embedding 클래스 선언
@@ -91,7 +95,7 @@ class gAIa(object):
                                     torch.tensor(self._rnk, dtype=torch.long))
             self._dataloader = DataLoader(dataset, batch_size=self._batch_size, shuffle=True)
         
-        elif args.mode in ['test', 'pred']:
+        elif args.mode in ['test', 'eval', 'pred']:
             self._tst_dlg, self._tst_crd, _ = make_io_data(self._swer, self._item2idx, self._idx2item,
                                                             self._metadata, self._meta_similarities,
                                                             'eval', args.in_file_tst_dialog,
@@ -426,6 +430,12 @@ class gAIa(object):
         print(f'Average WKTC over iterations: {np.mean(test_corr):.4f}')
         print(f'Best WKTC: {np.max(test_corr):.4f}')
         print('-'*50)
+
+        # 결과 저장
+        _, tr_task_id, eval_task_id = self._task_ids.split('/')
+        save_results(exp_name=self._exp_name, score=np.mean(test_corr),
+                     tr_task_id=tr_task_id, tt_task_id=eval_task_id,
+                     mode=self._mode)
 
     
     def ensemble(self, model_files: List[str]):
