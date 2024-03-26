@@ -655,6 +655,7 @@ def _insert_into_fashion_coordi(coordi: List[str], items: List[str]):
     new_coordi = coordi[:]
 
     for item in items:
+        item = item.replace('L_', '')
         pos = _position_of_fashion_item(item)
 
         if item[0:2] == 'OP': # 패션 아이템이 원피스인 경우
