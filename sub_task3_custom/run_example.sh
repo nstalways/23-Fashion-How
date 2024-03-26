@@ -11,6 +11,7 @@ sh run_test.sh --exp_name $exp_name --task_ids /1/4 --in_file_tst_dialog ../data
 sh run_test.sh --exp_name $exp_name --task_ids /1/5 --in_file_tst_dialog ../data/dialogue/eval/cl_eval_task5.wst.dev --model_path ./gAIa_CL_model
 sh run_test.sh --exp_name $exp_name --task_ids /1/6 --in_file_tst_dialog ../data/dialogue/eval/cl_eval_task6.wst.dev --model_path ./gAIa_CL_model
 
+
 ### train task#2 ###
 sh run_train.sh --in_file_trn_dialog ../data/dialogue/tr/task2.ddata.wst.txt --in_file_tst_dialog ../data/dialogue/eval/cl_eval_task2.wst.dev --model_path ./gAIa_CL_model --model_file gAIa-final.pt
 ### eval task#2 ###
