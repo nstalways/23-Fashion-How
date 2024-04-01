@@ -15,7 +15,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 class SubWordEmbReaderUtil:
     """
-    Class for subword embedding
     SubWordEmbedding을 읽어오고, 재조립할 때 사용합니다.
     """
     def __init__(self, data_path: str='./sstm_v0p5_deploy/sstm_v4p49_np_n36134_d128.dat'):
@@ -226,29 +225,13 @@ def _memorize(dialog: np.ndarray, mem_size: int=16, emb_size: int=128):
     zero_emb = np.zeros((1, emb_size))
     memory = []
 
-    # # 전체 에피소드에 대해 반복
-    # for i in range(len(dialog)):
-    #     idx = max(0, len(dialog[i]) - mem_size)
-
-    #     ss = dialog[i][idx:] # mem_size 만큼의 벡터를 추출
-
-    #     # mem_size만큼의 벡터가 확보되지 않은 경우, zero padding 수행
-    #     pad = mem_size - len(ss)
-
-    #     for i in range(pad):
-    #         ss = np.append(ss, zero_emb, axis=0)
-
-    #     memory.append(ss)
-
-    ### custom code ###
     for i in range(len(dialog)):
         idx = max(0, len(dialog[i]) - mem_size)    
 
         if idx == 0:
             ss = dialog[i][idx:]
         else:
-            # validation data의 dialog와 비슷하게 구성
-            # 초반 두 문장과 끝 부분의 유의미한 문장 일부를 붙여서 데이터를 구성
+            # 초반 두 문장과 끝 부분의 유의미한 문장 일부를 붙여서 데이터를 구성 (validation data와 유사하도록)
             ss = np.concatenate([dialog[i][:2], dialog[i][-mem_size:-2]], axis=0)
 
         # 부족하면 padding
@@ -258,8 +241,6 @@ def _memorize(dialog: np.ndarray, mem_size: int=16, emb_size: int=128):
             ss = np.append(ss, zero_emb, axis=0)
 
         memory.append(ss)
-    
-    ### custom code ###
 
     return np.array(memory, dtype='float32')
 
@@ -491,23 +472,10 @@ def _replace_item(crd: List[List[str]], item2idx: List[dict], idx2item: List[dic
         idx = np.arange(len(item2idx[p]))
         np.random.shuffle(idx)
 
-        ### custom code ###
         is_found = False
 
         # p번째 카테고리에 속하는 패션 아이템의 개수만큼 반복
         for k in range(len(item2idx[p])):
-            ### original code ###
-            # following codes will removed ...
-            # # itm_idx 아이템과 idx[k] 아이템의 유사도가 thres보다 낮다면
-            # if similarities[p][itm_idx][idx[k]] < thres:
-
-            #     # idx[k]의 위치와 아이템 정보를 저장
-            #     rep_idx = idx[k]
-            #     rep_itm = idx2item[p][rep_idx]
-
-            #     break
-            ### original code ###
-
             candidate = similarities[p][itm_idx][idx[k]] # 대체할 후보 아이템의 유사도
 
             # 유사도가 일정 값 이내에 속한다면 대체
@@ -526,8 +494,6 @@ def _replace_item(crd: List[List[str]], item2idx: List[dict], idx2item: List[dic
             rep_itm = idx2item[p][rep_idx]
 
             new_crd[p] = rep_itm
-
-        ### custom code ###
 
     return new_crd
 
@@ -666,7 +632,6 @@ def _insert_into_fashion_coordi(coordi: List[str], items: List[str]):
     return new_coordi
 
 
-# TODO: TAG 저장 방식을 변경해보자..
 def _load_trn_dialog(in_file: str='./data/task1.ddata.wst.txt'):
     """모델 학습에 사용할 텍스트 데이터를 불러올 때 사용합니다.
 
@@ -809,7 +774,6 @@ def _load_trn_dialog(in_file: str='./data/task1.ddata.wst.txt'):
                 np.array(delim_reward, dtype='int32')
 
 
-# TODO
 def _load_eval_dialog(in_file: str='./data/cl_eval_task1.wst.dev'):
     """모델 성능 평가에 사용할 텍스트 데이터를 불러올 때 사용합니다.
 
@@ -881,7 +845,6 @@ def _load_eval_dialog(in_file: str='./data/cl_eval_task1.wst.dev'):
         return data_utter, data_coordi, data_rank
 
 
-# TODO: metadata가 아니라 img feature만 쓰면 어떨까?
 def _convert_one_coordi_to_metadata(idx_one_coordi: List[int], metadata: np.ndarray,
                                     coordi_size: int=4, img_feats = None):
     """하나의 코디 조합에 대응되는 metadata 임베딩 벡터로 변환합니다.
@@ -1034,7 +997,6 @@ def _categorize(name: list, vec_item: np.ndarray, coordi_size: int=4):
     return slot_name, slot_item
 
 
-# TODO
 def _shuffle_one_coordi_and_ranking(rank_lst: np.ndarray, coordi: List[List[str]], num_rank: int=3):
     """코디와 코디의 순위를 섞습니다.
 
@@ -1077,7 +1039,6 @@ def _shuffle_one_coordi_and_ranking(rank_lst: np.ndarray, coordi: List[List[str]
     return rank, rand_crd
 
 
-# TODO:
 def shuffle_coordi_and_ranking(coordi: np.ndarray, num_rank: int=3):
     """평가용 데이터의 코디와 순위를 섞을 때 사용합니다.
 
