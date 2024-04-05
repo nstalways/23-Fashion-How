@@ -29,10 +29,10 @@ NUM_META_FEAT = 4
 # of fashion coordination candidates        
 NUM_RANKING = 3
 # image feature size 
-IMG_FEAT_SIZE = 4096
+IMG_FEAT_SIZE = 2048
 # SI parameter (얘도 성능에 영향이 있을 것 같은데..)
 si_c = 0.1
-epsilon = 0.001
+epsilon = 1e-4 # default: 0.001 (1e-3 >> 1e-5 >> 1e-7 >> 1e-4)
 
 
 # custom modules
@@ -78,7 +78,7 @@ class gAIa(object):
                                  self._meta_size, args.use_multimodal, args.in_file_img_feats, feats_size)
         
         self._metadata, self._idx2item, self._item2idx, \
-            self._item_size, self._meta_similarities, self._feats = [*metadata]
+            self._item_size, self._meta_similarities, self._img_feats = [*metadata]
          
         ### 학습 및 평가에 사용할 DB 준비 ###
         if args.mode == 'train':
@@ -86,7 +86,7 @@ class gAIa(object):
                                                            self._metadata, self._meta_similarities, 'prepare',
                                                            self._in_file_trn_dialog, args.mem_size, self._coordi_size,
                                                            self._num_rnk, args.permutation_iteration, args.num_augmentation,
-                                                           args.corr_thres, self._feats)
+                                                           args.corr_thres, self._img_feats)
             
             self._num_examples = len(self._dlg)
             
@@ -101,7 +101,7 @@ class gAIa(object):
                                                             'eval', args.in_file_tst_dialog,
                                                             args.mem_size, self._coordi_size, self._num_rnk,
                                                             args.permutation_iteration, args.num_augmentation,
-                                                            args.corr_thres, self._feats)
+                                                            args.corr_thres, self._img_feats)
             
             self._num_examples = len(self._tst_dlg)
 
