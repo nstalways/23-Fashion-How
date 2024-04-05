@@ -879,6 +879,7 @@ def _convert_one_coordi_to_metadata(idx_one_coordi: List[int], metadata: np.ndar
                 items_meta = buf_meta[:]
                 items_feat = buf_feat[:]
 
+            # TODO: 메타데이터는 concat, 이미지 데이터는 더해서 평균내는 방식을 변경해볼 것 (2, 2024) >> (5, 2024)로
             else:
                 items_meta = np.concatenate([items_meta[:], buf_meta[:]], axis=0)
                 items_feat += buf_feat[:]
@@ -1082,13 +1083,14 @@ def shuffle_coordi_and_ranking(coordi: np.ndarray, num_rank: int=3):
     return data_coordi_rand, data_rank
 
 
-def _custom_load_fashion_feature(slot_name: np.ndarray, coordi_size: int=4, feat_size: int=2048):
+def _custom_load_fashion_feature(slot_name: np.ndarray, coordi_size: int=4, feat_size: int=2048, in_file_img_feats: str="../data/img_feats"):
     """패션 아이템 이미지에 대한 feature를 불러올 때 사용합니다.
 
     Args:
         slot_name (np.ndarray): 패션 아이템들의 이름이 카테고리별로 구분되어있는 리스트입니다.
         coordi_size (int, optional): 하나의 코디를 구성하는 패션 아이템의 개수입니다. Defaults to 4.
         feat_size (int, optional): img feature의 차원 수입니다. Defaults to 2048.
+        in_file_img_feats (str, optional): img feature가 저장되어있는 디렉토리의 경로입니다. Defaults to ../data/img_feats
     """
     suffix = '.npy'
     feats = []
@@ -1102,12 +1104,12 @@ def _custom_load_fashion_feature(slot_name: np.ndarray, coordi_size: int=4, feat
                 feat.append(np.zeros((feat_size)))
             else:
                 img_name = n + suffix
-                img_feats_path = os.path.join('./data/data_new/img_feats', img_name)
+                img_feats_path = os.path.join(in_file_img_feats, img_name)
                 
                 # npy 파일을 가져옴
                 with open(img_feats_path, 'rb') as f:
                     img_feats = np.load(f)
-
+                
                 feat.append(np.mean(img_feats, axis=0))
         
         end = time.time()
@@ -1124,7 +1126,7 @@ def _custom_load_fashion_feature(slot_name: np.ndarray, coordi_size: int=4, feat
 
 def make_metadata(swer, in_file_fashion: str='./data/mdata.wst.txt.2023.01.26',
                   coordi_size: int=4, meta_size: int=4, use_multimodal: bool=False,
-                  in_file_img_feats: str='./data/extracted_feat.json', feat_size: int=2048):
+                  in_file_img_feats: str='./data/img_feats', feat_size: int=2048):
     """Train / Test에 사용할 메타데이터를 만들때 사용하는 함수입니다.
 
     Args:
@@ -1133,7 +1135,7 @@ def make_metadata(swer, in_file_fashion: str='./data/mdata.wst.txt.2023.01.26',
         coordi_size (int, optional): 하나의 코디를 구성하는 패션 아이템의 개수입니다. Defaults to 4.
         meta_size (int, optional): 패션 아이템 메타데이터의 특징 종류 개수입니다. Defaults to 4.
         use_multimodal (bool, optional): img feature를 사용할 지 여부를 나타냅니다. Defaults to False.
-        in_file_img_feats (str, optional): img feature가 저장되어있는 파일의 경로입니다. Defaults to './data/extracted_feat.json'.
+        in_file_img_feats (str, optional): img feature가 저장되어있는 디렉토리의 경로입니다. Defaults to './data/img_feats'.
         feat_size (int, optional): img feature의 차원 수입니다. Defaults to 2048.
     """
 
@@ -1158,8 +1160,9 @@ def make_metadata(swer, in_file_fashion: str='./data/mdata.wst.txt.2023.01.26',
     slot_feat = None
 
     if use_multimodal: # 원하면 img feature를 불러와서 사용
-        slot_feat = _custom_load_fashion_feature(slot_name, coordi_size, feat_size)
+        slot_feat = _custom_load_fashion_feature(slot_name, coordi_size, feat_size, in_file_img_feats)
 
+    # TODO: 이미지 feature 기반 cosine similarity 계산
     ### 카테고리별 패션 아이템 임베딩 간의 cosine similarity 계산 ###
     vec_similarities = []
 
